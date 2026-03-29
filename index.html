@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Caveman Adventures - Ajuste de Física</title>
+    <title>Caveman Adventure - GIF Animado</title>
     <style>
         body { 
             text-align: center; 
@@ -12,136 +12,120 @@
             margin: 0; 
             overflow: hidden; 
         }
+        #game-container {
+            position: relative;
+            width: 800px;
+            height: 300px;
+            margin: 20px auto;
+        }
         canvas { 
             border: 4px solid #444; 
-            background-color: #87CEEB; /* Céu azul */
+            background-color: #87CEEB;
             display: block; 
-            margin: 20px auto; 
             box-shadow: 0 0 50px rgba(0,0,0,0.5);
-            image-rendering: pixelated; 
         }
+        /* O segredo: Esta tag exibe o GIF animado real sobre o jogo */
+        #player-gif {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            pointer-events: none; /* Não interfere nos cliques */
+            image-rendering: pixelated;
+        }
+        .ui { margin-top: 20px; }
     </style>
 </head>
 <body>
-    <h1>CAVEMAN RUN</h1>
-    <p>Pressione <strong style="color: #ffcc00;">ESPAÇO</strong> para Pular</p>
-    
-    <canvas id="gameCanvas" width="800" height="300"></canvas>
+    <div class="ui">
+        <h1>CAVEMAN RUN</h1>
+        <p>Pressione <strong style="color: #ffcc00;">ESPAÇO</strong> para Pular</p>
+    </div>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="800" height="300"></canvas>
+        <img id="player-gif" src="caveman_runcycle.gif" alt="Running Caveman">
+    </div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
+        const playerImg = document.getElementById("player-gif");
 
-        // --- ATIVOS (GIF) ---
-        const cavemanGif = new Image();
-        // **IMPORTANTE**: Certifique-se que o arquivo 'caveman_runcycle.gif' está na mesma pasta
-        cavemanGif.src = "caveman_runcycle.gif"; 
-
-        // --- CONFIGURAÇÕES DE FÍSICA ---
+        // --- CONFIGURAÇÕES ---
         const gravidade = 0.8;
         const forcaPulo = -16;
-        
-        // --- CONFIGURAÇÕES DO CENÁRIO (CHÃO) ---
-        // Vamos definir a posição exata da linha preta (chão).
-        // 270 pixels do topo é uma boa altura.
         const POSICAO_CHAO = 270; 
 
-        // --- ESTADO DO PERSONAGEM (Ajustado para o novo chão) ---
         let player = {
             x: 100,
-            y: 0, // A física começa com Y=0 (no ar)
-            largura: 100, // Tamanho visual da imagem
+            y: 170, // Começa no chão
+            largura: 100,
             altura: 100,
             velocidadeY: 0,
-            noChao: false
+            noChao: true
         };
 
-        // Chão em movimento (fundo)
         let chaoX = 0;
-        let velocidadeCenario = 5;
+        let velocidadeCenario = 6;
 
-        // --- O LOOP DE ANIMAÇÃO ---
-        function draw() {
-            // Limpa o canvas para o próximo desenho
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // --- 1. ATUALIZAR FÍSICA E MOVIMENTAÇÃO ---
-            
-            // Aplicar Gravidade
+        function update() {
+            // 1. Física
             player.velocidadeY += gravidade;
             player.y += player.velocidadeY;
 
-            // --- CORREÇÃO DA COLISÃO COM O CHÃO ---
-            // A "caixa" do personagem está sendo desenhada para baixo do solo.
-            // Precisamos que o *pé* dele (player.y + player.altura) pare no chão.
-            const limitePé = POSICAO_CHAO;
-
-            if (player.y + player.altura >= limitePé) {
-                // Se o pé passar do chão, nós o resetamos exatamante em cima
-                player.y = limitePé - player.altura;
+            // 2. Colisão Solo
+            if (player.y + player.altura >= POSICAO_CHAO) {
+                player.y = POSICAO_CHAO - player.altura;
                 player.velocidadeY = 0;
                 player.noChao = true;
             }
 
-            // Movimentar o chão visual (fundo)
+            // 3. Movimento do Cenário
             chaoX -= velocidadeCenario;
-            if (chaoX <= -canvas.width) {
-                chaoX = 0;
-            }
+            if (chaoX <= -canvas.width) chaoX = 0;
 
-            // --- 2. DESENHAR O CENÁRIO (BASEADO NO GIF) ---
-            
-            // Desenhar Céu Azul (fundo)
+            // 4. ATUALIZAR POSIÇÃO DO GIF (Onde a mágica acontece)
+            // Sincroniza a posição da imagem HTML com a física do jogo
+            playerImg.style.left = player.x + "px";
+            playerImg.style.top = player.y + "px";
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Desenhar Céu
             ctx.fillStyle = "#87CEEB";
             ctx.fillRect(0, 0, canvas.width, POSICAO_CHAO);
 
-            // --- DESENHAR CHÃO (Terra e Linha Preta) ---
-            // Terra (marrom) - Tudo abaixo do POSICAO_CHAO
+            // Desenhar Terra
             ctx.fillStyle = "#8B4513"; 
-            ctx.fillRect(chaoX, POSICAO_CHAO, canvas.width, canvas.height - POSICAO_CHAO);
-            ctx.fillRect(chaoX + canvas.width, POSICAO_CHAO, canvas.width, canvas.height - POSICAO_CHAO);
+            ctx.fillRect(chaoX, POSICAO_CHAO, canvas.width, canvas.height);
+            ctx.fillRect(chaoX + canvas.width, POSICAO_CHAO, canvas.width, canvas.height);
             
-            // Linha preta (o chão real onde ele pisa)
+            // Linha do Chão
             ctx.fillStyle = "black";
-            ctx.fillRect(chaoX, POSICAO_CHAO, canvas.width, 3);
-            ctx.fillRect(chaoX + canvas.width, POSICAO_CHAO, canvas.width, 3);
+            ctx.fillRect(chaoX, POSICAO_CHAO, canvas.width, 4);
+            ctx.fillRect(chaoX + canvas.width, POSICAO_CHAO, canvas.width, 4);
 
-            // Grama (verde) - Opcional, para ficar mais parecido com o deserto pré-histórico
+            // Grama
             ctx.fillStyle = "#228B22";
-            ctx.fillRect(chaoX, POSICAO_CHAO - 5, canvas.width, 5);
-            ctx.fillRect(chaoX + canvas.width, POSICAO_CHAO - 5, canvas.width, 5);
+            ctx.fillRect(chaoX, POSICAO_CHAO - 6, canvas.width, 6);
+            ctx.fillRect(chaoX + canvas.width, POSICAO_CHAO - 6, canvas.width, 6);
 
-            // --- 3. DESENHAR O PERSONAGEM (GIF) ---
-            // Agora o player.y já está ajustado para alinhar o pé com o chão
-            if (cavemanGif.complete) {
-                // Centraliza a imagem no player.x e usa o player.y ajustado
-                ctx.drawImage(
-                    cavemanGif, 
-                    player.x, 
-                    player.y, 
-                    player.largura, 
-                    player.altura
-                );
-            }
-
-            // Chama a função novamente para criar o loop contínuo
+            update();
             requestAnimationFrame(draw);
         }
 
-        // --- CONTROLES DE PULO ---
-        window.addEventListener("keydown", (event) => {
-            if (event.code === "Space" && player.noChao) {
+        // --- CONTROLES ---
+        window.addEventListener("keydown", (e) => {
+            if (e.code === "Space" && player.noChao) {
                 player.velocidadeY = forcaPulo;
                 player.noChao = false;
             }
         });
 
-        // Inicia a animação assim que a imagem terminar de carregar
-        if (cavemanGif.complete) {
-            draw();
-        } else {
-            cavemanGif.onload = draw;
-        }
+        // Iniciar
+        draw();
     </script>
 </body>
 </html>
