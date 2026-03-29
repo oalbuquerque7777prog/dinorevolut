@@ -2,244 +2,131 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Mech Knight - Correção de Sprites</title>
+    <title>Caveman Adventure - Física Ativada</title>
     <style>
         body { 
             text-align: center; 
             font-family: 'Courier New', Courier, monospace; 
-            background-color: #0f172a; 
-            color: #f1f5f9; 
+            background-color: #222; 
+            color: #eee; 
             margin: 0; 
             overflow: hidden; 
         }
         canvas { 
-            border: 6px solid #334155; 
-            background-color: #1e293b; 
+            border: 4px solid #444; 
+            background-color: #87CEEB; /* Cor de céu */
             display: block; 
             margin: 20px auto; 
-            box-shadow: 0 0 50px rgba(96, 165, 250, 0.3); 
-            border-radius: 12px;
-            image-rendering: pixelated; /* Mantém o pixel art nítido */
+            box-shadow: 0 0 50px rgba(0,0,0,0.5);
+            image-rendering: pixelated; 
         }
-        h1 { margin-top: 20px; text-transform: uppercase; letter-spacing: 2px; }
-        .controls { color: #94a3b8; font-size: 1.1em; margin-bottom: 10px; }
-        .key { padding: 2px 8px; background: #334155; border-radius: 4px; color: #60a5fa; }
+        .ui {
+            position: absolute;
+            top: 30px;
+            width: 100%;
+            pointer-events: none;
+        }
     </style>
 </head>
 <body>
-    <h1>Mech <span style="color: #60a5fa">Knight</span> Action</h1>
-    <div class="controls">
-        <span class="key">ESPAÇO</span> Pular | <span class="key">X</span> Atirar
+    <div class="ui">
+        <h1>CAVEMAN RUN</h1>
+        <p>Pressione <strong style="color: #ffcc00;">ESPAÇO</strong> para Pular</p>
     </div>
+    
     <canvas id="gameCanvas" width="800" height="300"></canvas>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
 
-        // --- CARREGAMENTO DE ATIVOS ---
-        const spritesheet = new Image();
-        spritesheet.src = "spritesheet.png"; // Deve estar no seu GitHub
+        // --- ATIVOS ---
+        const cavemanGif = new Image();
+        cavemanGif.src = "caveman_runcycle.gif"; // Certifique-se que o nome está correto
 
-        // --- DEFINIÇÃO EXATA DAS COORDENADAS DOS FRAMES (TABELA DE SPRITES) ---
-        // Estas medidas foram caçadas pixel por pixel no spritesheet original.
-        
-        const SPRITE_TABLE = {
-            // Linha 1: RUN (6 frames)
-            run: [
-                {sx: 26, sy: 0, sw: 94, sh: 120},  // Frame 1
-                {sx: 154, sy: 0, sw: 100, sh: 120}, // Frame 2
-                {sx: 290, sy: 0, sw: 100, sh: 120}, // Frame 3
-                {sx: 422, sy: 0, sw: 100, sh: 120}, // Frame 4
-                {sx: 554, sy: 0, sw: 100, sh: 120}, // Frame 5
-                {sx: 686, sy: 0, sw: 100, sh: 120}, // Frame 6
-            ],
-            // Linha 2: JUMP (2 frames)
-            jump: [
-                {sx: 26, sy: 200, sw: 94, sh: 130},  // Jump Up
-                {sx: 154, sy: 200, sw: 100, sh: 130}, // Jump Down
-            ],
-            // Linha 3: RUN AND SHOOT (6 frames)
-            run_shoot: [
-                {sx: 26, sy: 420, sw: 100, sh: 120},  // Frame 1
-                {sx: 154, sy: 420, sw: 110, sh: 120}, // Frame 2
-                {sx: 290, sy: 420, sw: 110, sh: 120}, // Frame 3
-                {sx: 422, sy: 420, sw: 110, sh: 120}, // Frame 4
-                {sx: 554, sy: 420, sw: 110, sh: 120}, // Frame 5
-                {sx: 686, sy: 420, sw: 110, sh: 120}, // Frame 6
-            ],
-            // Linha 4: JUMP AND SHOOT (2 frames)
-            jump_shoot: [
-                {sx: 26, sy: 620, sw: 100, sh: 130},  // Jump Up Shoot
-                {sx: 154, sy: 620, sw: 110, sh: 130}, // Jump Down Shoot
-            ],
-            // Projétil "Pew Pew"
-            pew_pew: {sx: 810, sy: 450, sw: 50, sh: 50}
+        // --- CONFIGURAÇÕES DE FÍSICA ---
+        const gravidade = 0.8;
+        const forcaPulo = -15;
+        const soloY = 220; // Posição do chão
+
+        // --- ESTADO DO PERSONAGEM ---
+        let player = {
+            x: 100,
+            y: soloY,
+            largura: 100,
+            altura: 100,
+            velocidadeY: 0,
+            noChao: true
         };
 
-        // --- ESTADO DO JOGO ---
-        let dino = { 
-            x: 80, y: 150, // Posição
-            w: 100, h: 100, // Tamanho na tela (ajustado para os novos sprites)
-            dy: 0, jumpForce: 17, gravity: 0.9, grounded: false, 
-            animationFrame: 0, 
-            animationSpeed: 5, // VELOCIDADE DA CORRIDA (Fluida)
-            ticks: 0, 
-            isShooting: false, 
-            shootTimer: 0 
-        };
-        
-        let obstacle = { x: 900, y: 210, w: 45, h: 45, speed: 9, isDestroyed: false };
-        let tiros = [];
-        let fundoX = 0;
-        let score = 0;
-        let isGameOver = false;
+        // --- CENÁRIO (CHÃO) ---
+        let chaoX = 0;
+        let velocidadeCenario = 5;
 
-        // Imagens auxiliares em SVG para carregar rápido
-        const caixaImg = new Image();
-        caixaImg.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMCAyMCI+PHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjIwIiBmaWxsPSIjNDQ0Ii8+PHJlY3QgeD0iNSIgeT0iNSIgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjZTk0NTYwIi8+PC9zdmc+";
-        
-        const fundoImg = new Image();
-        fundoImg.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgMzAwIj48cmVjdCB4PSIwIiB5PSIyNzAiIHdpZHRoPSI4MDAiIGhlaWdodD0iMzAiIGZpbGw9IiMzMzMiLz48L3N2Zz4=";
+        function update() {
+            // 1. Aplicar Gravidade
+            player.velocidadeY += gravidade;
+            player.y += player.velocidadeY;
+
+            // 2. Checar Colisão com o Chão
+            if (player.y >= soloY) {
+                player.y = soloY;
+                player.velocidadeY = 0;
+                player.noChao = true;
+            }
+
+            // 3. Movimentar o Chão (Efeito de Corrida)
+            chaoX -= velocidadeCenario;
+            if (chaoX <= -canvas.width) {
+                chaoX = 0;
+            }
+        }
 
         function draw() {
-            if (isGameOver) return;
-
+            // Limpar tela
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. FUNDO COM MOVIMENTO REALISTA
-            fundoX -= obstacle.speed * 0.7; 
-            if (fundoX <= -canvas.width) fundoX = 0;
-            ctx.drawImage(fundoImg, fundoX, 0, canvas.width, canvas.height);
-            ctx.drawImage(fundoImg, fundoX + canvas.width, 0, canvas.width, canvas.height);
+            // --- DESENHAR CÉU E NUVENS (OPCIONAL) ---
+            ctx.fillStyle = "#87CEEB";
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-            // 2. FÍSICA DO PULO
-            if (!dino.grounded) {
-                dino.dy += dino.gravity;
-                dino.y += dino.dy;
-            }
-            if (dino.y > 150) { // Chão
-                dino.y = 150; 
-                dino.grounded = true; 
-                dino.dy = 0;
-            }
+            // --- DESENHAR CHÃO ---
+            ctx.fillStyle = "#8B4513"; // Cor de terra
+            ctx.fillRect(chaoX, 270, canvas.width, 30);
+            ctx.fillRect(chaoX + canvas.width, 270, canvas.width, 30);
+            
+            // Grama ou detalhes no chão
+            ctx.fillStyle = "#228B22";
+            ctx.fillRect(chaoX, 270, canvas.width, 5);
+            ctx.fillRect(chaoX + canvas.width, 270, canvas.width, 5);
 
-            // --- 3. NOVA LÓGICA DE ANIMAÇÃO COM TABELA DE SPRITES (CORRIGE O VISUAL) ---
-            let currentSprite; // Guarda o objeto {sx, sy, sw, sh} correto
-
-            // Gerencia o timer de tiro
-            if (dino.isShooting) {
-                dino.shootTimer++;
-                if (dino.shootTimer > 15) { // Tiro mais longo para ver a animação
-                    dino.isShooting = false;
-                    dino.shootTimer = 0;
-                }
-            }
-
-            if (!dino.grounded) {
-                // ANIMAÇÃO DE PULO (Usa tabela jump ou jump_shoot)
-                let jump_table = dino.isShooting ? SPRITE_TABLE.jump_shoot : SPRITE_TABLE.jump;
-                let frameIndex = (dino.dy < 0) ? 0 : 1; // 0=Subindo, 1=Descendo
-                currentSprite = jump_table[frameIndex];
-            } else {
-                // ANIMAÇÃO DE CORRIDA (Usa tabela run ou run_shoot)
-                let run_table = dino.isShooting ? SPRITE_TABLE.run_shoot : SPRITE_TABLE.run;
-                
-                dino.ticks++;
-                if (dino.ticks >= dino.animationSpeed) {
-                    dino.ticks = 0;
-                    dino.animationFrame = (dino.animationFrame + 1) % 6; // Loop nos 6 frames
-                }
-                currentSprite = run_table[dino.animationFrame];
-            }
-
-            // Desenha o Robô usando as coordenadas EXATAS caçadas manualmente
-            // Math.floor evita borrão de pixel
-            if (spritesheet.complete && currentSprite) {
+            // --- DESENHAR PERSONAGEM (GIF) ---
+            if (cavemanGif.complete) {
+                // O drawImage desenha o frame atual do GIF na posição Y da física
                 ctx.drawImage(
-                    spritesheet, 
-                    currentSprite.sx, currentSprite.sy, currentSprite.sw, currentSprite.sh, // Fonte (Corte manual)
-                    Math.floor(dino.x), Math.floor(dino.y), dino.w, dino.h // Destino (Tela)
+                    cavemanGif, 
+                    player.x, 
+                    player.y, 
+                    player.largura, 
+                    player.altura
                 );
             }
 
-            // --- 4. TIROS (PEW PEW) ---
-            let p = SPRITE_TABLE.pew_pew; // Coordenadas do projétil
-            for (let i = 0; i < tiros.length; i++) {
-                let t = tiros[i];
-                t.x += 16; // Velocidade do tiro
-
-                // Desenha o efeito do tiro caçado manualmente
-                ctx.drawImage(spritesheet, p.sx, p.sy, p.sw, p.sh, t.x, t.y, 30, 30);
-
-                // Colisão Tiro vs Obstáculo
-                if (!obstacle.isDestroyed && t.x < obstacle.x + obstacle.w && t.x + 30 > obstacle.x &&
-                    t.y < obstacle.y + obstacle.h && t.y + 30 > obstacle.y) {
-                    obstacle.isDestroyed = true;
-                    tiros.splice(i, 1); i--;
-                    score += 5;
-                    continue;
-                }
-                if (t.x > canvas.width) { tiros.splice(i, 1); i--; }
-            }
-
-            // 5. OBSTÁCULO E DIFICULDADE
-            obstacle.x -= obstacle.speed;
-            if (obstacle.x < -obstacle.w || obstacle.isDestroyed) {
-                obstacle.x = canvas.width + Math.random() * 400; 
-                if (!obstacle.isDestroyed) score++;
-                obstacle.isDestroyed = false; 
-                obstacle.speed += 0.15;
-            }
-            if (!obstacle.isDestroyed) {
-                ctx.drawImage(caixaImg, obstacle.x, obstacle.y, obstacle.w, obstacle.h);
-                // Colisão Jogador (Ajustada para o corpo real do robô)
-                if (dino.x + 30 < obstacle.x + obstacle.w && dino.x + dino.w - 30 > obstacle.x &&
-                    dino.y + 20 < obstacle.y + obstacle.h && dino.y + dino.h - 10 > obstacle.y) {
-                    gameOver();
-                }
-            }
-
-            // 6. UI (PLACAR)
-            ctx.fillStyle = "#60a5fa";
-            ctx.font = "bold 22px Courier New";
-            ctx.fillText("SCORE: " + score, 20, 40);
-
+            // --- LOOP DO JOGO ---
+            update();
             requestAnimationFrame(draw);
         }
 
-        function gameOver() {
-            isGameOver = true;
-            ctx.fillStyle = "rgba(0,0,0,0.85)";
-            ctx.fillRect(0,0, canvas.width, canvas.height);
-            ctx.fillStyle = "#f87171"; ctx.font = "bold 40px Courier New";
-            ctx.fillText("UNIT_COMPROMISED", canvas.width/2 - 180, canvas.height/2);
-            ctx.fillStyle = "#fff"; ctx.font = "20px Courier New";
-            ctx.fillText("Score Final: " + score, canvas.width/2 - 80, canvas.height/2 + 50);
-            ctx.fillText("Pressione ESPAÇO para reiniciar", canvas.width/2 - 180, canvas.height/2 + 90);
-        }
-
-        function atirar() {
-            if (isGameOver || tiros.length > 5) return;
-            dino.isShooting = true;
-            dino.shootTimer = 0;
-            tiros.push({ x: dino.x + dino.w - 10, y: dino.y + 40 }); // Sai do braço
-        }
-
-        // CONTROLES
-        window.addEventListener("keydown", (e) => {
-            if (e.code === "Space") {
-                if (isGameOver) {
-                    isGameOver = false; dino.y = 150; obstacle.x = canvas.width; obstacle.speed = 9; score = 0; tiros = []; draw();
-                } else if (dino.grounded) {
-                    dino.dy = -dino.jumpForce; dino.grounded = false;
-                }
-            } else if (e.code === "KeyX") { atirar(); }
+        // --- CONTROLES ---
+        window.addEventListener("keydown", (event) => {
+            if (event.code === "Space" && player.noChao) {
+                player.velocidadeY = forcaPulo;
+                player.noChao = false;
+            }
         });
-        canvas.addEventListener("mousedown", atirar);
 
-        // Inicia apenas quando a imagem carregar
-        if (spritesheet.complete) { draw(); } else { spritesheet.onload = draw; }
+        // Iniciar quando a imagem carregar
+        cavemanGif.onload = draw;
     </script>
 </body>
 </html>
