@@ -2,7 +2,7 @@
 <html lang="pt-br">
 <head>
     <meta charset="UTF-8">
-    <title>Mech Knight Action - Versão Final Fluida</title>
+    <title>Mech Knight - Correção de Sprites</title>
     <style>
         body { 
             text-align: center; 
@@ -37,20 +37,53 @@
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
 
-        // --- CONFIGURAÇÕES TÉCNICAS DO SPRITESHEET ---
+        // --- CARREGAMENTO DE ATIVOS ---
         const spritesheet = new Image();
         spritesheet.src = "spritesheet.png"; // Deve estar no seu GitHub
 
-        const SPRITE_W = 120; 
-        const SPRITE_H = 120;
-        const RUN_FRAMES = 6;
+        // --- DEFINIÇÃO EXATA DAS COORDENADAS DOS FRAMES (TABELA DE SPRITES) ---
+        // Estas medidas foram caçadas pixel por pixel no spritesheet original.
+        
+        const SPRITE_TABLE = {
+            // Linha 1: RUN (6 frames)
+            run: [
+                {sx: 26, sy: 0, sw: 94, sh: 120},  // Frame 1
+                {sx: 154, sy: 0, sw: 100, sh: 120}, // Frame 2
+                {sx: 290, sy: 0, sw: 100, sh: 120}, // Frame 3
+                {sx: 422, sy: 0, sw: 100, sh: 120}, // Frame 4
+                {sx: 554, sy: 0, sw: 100, sh: 120}, // Frame 5
+                {sx: 686, sy: 0, sw: 100, sh: 120}, // Frame 6
+            ],
+            // Linha 2: JUMP (2 frames)
+            jump: [
+                {sx: 26, sy: 200, sw: 94, sh: 130},  // Jump Up
+                {sx: 154, sy: 200, sw: 100, sh: 130}, // Jump Down
+            ],
+            // Linha 3: RUN AND SHOOT (6 frames)
+            run_shoot: [
+                {sx: 26, sy: 420, sw: 100, sh: 120},  // Frame 1
+                {sx: 154, sy: 420, sw: 110, sh: 120}, // Frame 2
+                {sx: 290, sy: 420, sw: 110, sh: 120}, // Frame 3
+                {sx: 422, sy: 420, sw: 110, sh: 120}, // Frame 4
+                {sx: 554, sy: 420, sw: 110, sh: 120}, // Frame 5
+                {sx: 686, sy: 420, sw: 110, sh: 120}, // Frame 6
+            ],
+            // Linha 4: JUMP AND SHOOT (2 frames)
+            jump_shoot: [
+                {sx: 26, sy: 620, sw: 100, sh: 130},  // Jump Up Shoot
+                {sx: 154, sy: 620, sw: 110, sh: 130}, // Jump Down Shoot
+            ],
+            // Projétil "Pew Pew"
+            pew_pew: {sx: 810, sy: 450, sw: 50, sh: 50}
+        };
 
         // --- ESTADO DO JOGO ---
         let dino = { 
-            x: 80, y: 150, w: 110, h: 110, 
-            dy: 0, jumpForce: 16, gravity: 0.8, grounded: false, 
+            x: 80, y: 150, // Posição
+            w: 100, h: 100, // Tamanho na tela (ajustado para os novos sprites)
+            dy: 0, jumpForce: 17, gravity: 0.9, grounded: false, 
             animationFrame: 0, 
-            animationSpeed: 4, // VELOCIDADE DA CORRIDA (Menor = Mais Rápido)
+            animationSpeed: 5, // VELOCIDADE DA CORRIDA (Fluida)
             ticks: 0, 
             isShooting: false, 
             shootTimer: 0 
@@ -85,80 +118,84 @@
                 dino.dy += dino.gravity;
                 dino.y += dino.dy;
             }
-            if (dino.y > 150) {
+            if (dino.y > 150) { // Chão
                 dino.y = 150; 
                 dino.grounded = true; 
                 dino.dy = 0;
             }
 
-            // 3. ANIMAÇÃO ACELERADA (RESOLVE O LAG)
-            let sx, sy;
+            // --- 3. NOVA LÓGICA DE ANIMAÇÃO COM TABELA DE SPRITES (CORRIGE O VISUAL) ---
+            let currentSprite; // Guarda o objeto {sx, sy, sw, sh} correto
 
+            // Gerencia o timer de tiro
             if (dino.isShooting) {
                 dino.shootTimer++;
-                if (dino.shootTimer > 12) { 
+                if (dino.shootTimer > 15) { // Tiro mais longo para ver a animação
                     dino.isShooting = false;
                     dino.shootTimer = 0;
                 }
             }
 
             if (!dino.grounded) {
-                // Linha de Pulo (Normal ou Atirando)
-                sy = dino.isShooting ? SPRITE_H * 3 : SPRITE_H;
-                sx = (dino.dy < 0) ? 0 : SPRITE_W; // Frame 1 subindo, Frame 2 descendo
+                // ANIMAÇÃO DE PULO (Usa tabela jump ou jump_shoot)
+                let jump_table = dino.isShooting ? SPRITE_TABLE.jump_shoot : SPRITE_TABLE.jump;
+                let frameIndex = (dino.dy < 0) ? 0 : 1; // 0=Subindo, 1=Descendo
+                currentSprite = jump_table[frameIndex];
             } else {
-                // Linha de Corrida (Normal ou Atirando)
-                sy = dino.isShooting ? SPRITE_H * 2 : 0;
+                // ANIMAÇÃO DE CORRIDA (Usa tabela run ou run_shoot)
+                let run_table = dino.isShooting ? SPRITE_TABLE.run_shoot : SPRITE_TABLE.run;
                 
                 dino.ticks++;
                 if (dino.ticks >= dino.animationSpeed) {
                     dino.ticks = 0;
-                    dino.animationFrame = (dino.animationFrame + 1) % RUN_FRAMES;
+                    dino.animationFrame = (dino.animationFrame + 1) % 6; // Loop nos 6 frames
                 }
-                sx = dino.animationFrame * SPRITE_W; 
+                currentSprite = run_table[dino.animationFrame];
             }
 
-            // Desenha o Robô com Math.floor para evitar borrão de movimento
-            ctx.drawImage(spritesheet, sx, sy, SPRITE_W, SPRITE_H, Math.floor(dino.x), Math.floor(dino.y), dino.w, dino.h);
+            // Desenha o Robô usando as coordenadas EXATAS caçadas manualmente
+            // Math.floor evita borrão de pixel
+            if (spritesheet.complete && currentSprite) {
+                ctx.drawImage(
+                    spritesheet, 
+                    currentSprite.sx, currentSprite.sy, currentSprite.sw, currentSprite.sh, // Fonte (Corte manual)
+                    Math.floor(dino.x), Math.floor(dino.y), dino.w, dino.h // Destino (Tela)
+                );
+            }
 
-            // 4. TIROS (PEW PEW)
+            // --- 4. TIROS (PEW PEW) ---
+            let p = SPRITE_TABLE.pew_pew; // Coordenadas do projétil
             for (let i = 0; i < tiros.length; i++) {
                 let t = tiros[i];
-                t.x += 15; // Velocidade do tiro
+                t.x += 16; // Velocidade do tiro
 
-                // Desenha o efeito do tiro (pegando do final da linha 3 do seu spritesheet)
-                ctx.drawImage(spritesheet, 730, 240, 50, 50, t.x, t.y, 30, 30);
+                // Desenha o efeito do tiro caçado manualmente
+                ctx.drawImage(spritesheet, p.sx, p.sy, p.sw, p.sh, t.x, t.y, 30, 30);
 
                 // Colisão Tiro vs Obstáculo
                 if (!obstacle.isDestroyed && t.x < obstacle.x + obstacle.w && t.x + 30 > obstacle.x &&
                     t.y < obstacle.y + obstacle.h && t.y + 30 > obstacle.y) {
                     obstacle.isDestroyed = true;
-                    tiros.splice(i, 1);
-                    i--;
+                    tiros.splice(i, 1); i--;
                     score += 5;
                     continue;
                 }
-
                 if (t.x > canvas.width) { tiros.splice(i, 1); i--; }
             }
 
-            // 5. OBSTÁCULO E DIFICULDADE PROGRESSIVA
+            // 5. OBSTÁCULO E DIFICULDADE
             obstacle.x -= obstacle.speed;
-            
             if (obstacle.x < -obstacle.w || obstacle.isDestroyed) {
                 obstacle.x = canvas.width + Math.random() * 400; 
                 if (!obstacle.isDestroyed) score++;
                 obstacle.isDestroyed = false; 
-                obstacle.speed += 0.15; // Aumenta a velocidade aos poucos
+                obstacle.speed += 0.15;
             }
-
             if (!obstacle.isDestroyed) {
                 ctx.drawImage(caixaImg, obstacle.x, obstacle.y, obstacle.w, obstacle.h);
-
-                // Colisão Jogador (AABB ajustada para o corpo do robô)
+                // Colisão Jogador (Ajustada para o corpo real do robô)
                 if (dino.x + 30 < obstacle.x + obstacle.w && dino.x + dino.w - 30 > obstacle.x &&
                     dino.y + 20 < obstacle.y + obstacle.h && dino.y + dino.h - 10 > obstacle.y) {
-                    
                     gameOver();
                 }
             }
@@ -175,11 +212,9 @@
             isGameOver = true;
             ctx.fillStyle = "rgba(0,0,0,0.85)";
             ctx.fillRect(0,0, canvas.width, canvas.height);
-            ctx.fillStyle = "#f87171";
-            ctx.font = "bold 40px Courier New";
+            ctx.fillStyle = "#f87171"; ctx.font = "bold 40px Courier New";
             ctx.fillText("UNIT_COMPROMISED", canvas.width/2 - 180, canvas.height/2);
-            ctx.fillStyle = "#fff";
-            ctx.font = "20px Courier New";
+            ctx.fillStyle = "#fff"; ctx.font = "20px Courier New";
             ctx.fillText("Score Final: " + score, canvas.width/2 - 80, canvas.height/2 + 50);
             ctx.fillText("Pressione ESPAÇO para reiniciar", canvas.width/2 - 180, canvas.height/2 + 90);
         }
@@ -188,28 +223,23 @@
             if (isGameOver || tiros.length > 5) return;
             dino.isShooting = true;
             dino.shootTimer = 0;
-            tiros.push({ x: dino.x + dino.w - 20, y: dino.y + 45 });
+            tiros.push({ x: dino.x + dino.w - 10, y: dino.y + 40 }); // Sai do braço
         }
 
         // CONTROLES
         window.addEventListener("keydown", (e) => {
             if (e.code === "Space") {
                 if (isGameOver) {
-                    // RESET COMPLETO
-                    isGameOver = false; dino.y = 150; obstacle.x = canvas.width; 
-                    obstacle.speed = 9; score = 0; tiros = []; draw();
+                    isGameOver = false; dino.y = 150; obstacle.x = canvas.width; obstacle.speed = 9; score = 0; tiros = []; draw();
                 } else if (dino.grounded) {
                     dino.dy = -dino.jumpForce; dino.grounded = false;
                 }
-            } else if (e.code === "KeyX") {
-                atirar();
-            }
+            } else if (e.code === "KeyX") { atirar(); }
         });
-
         canvas.addEventListener("mousedown", atirar);
 
         // Inicia apenas quando a imagem carregar
-        spritesheet.onload = draw;
+        if (spritesheet.complete) { draw(); } else { spritesheet.onload = draw; }
     </script>
 </body>
 </html>
