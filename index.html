@@ -1,79 +1,144 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Dino JS - Cloudflare Ready</title>
+    <title>Mech Knight - Spritesheet Pro</title>
     <style>
-        canvas { border: 2px solid #333; background-color: #f0f0f0; display: block; margin: 0 auto; }
-        body { text-align: center; font-family: sans-serif; }
+        body { text-align: center; font-family: 'Courier New', Courier, monospace; background-color: #0f172a; color: #f1f5f9; margin: 0; padding: 0; }
+        canvas { border: 6px solid #334155; background-color: #1e293b; display: block; margin: 20px auto; box-shadow: 0 0 30px rgba(51,65,85,0.4); border-radius: 12px; }
+        h1 { margin-top: 30px; text-transform: uppercase; letter-spacing: 2px; }
+        p { color: #94a3b8; }
     </style>
 </head>
 <body>
-    <h1>Pressione ESPAÇO para Pular</h1>
-    <canvas id="gameCanvas" width="600" height="200"></canvas>
+    <h1>Mech <span style="color: #60a5fa">Knight</span> Runner</h1>
+    <p>Pressione ESPAÇO para Pular | GitHub & Cloudflare Pages</p>
+    <canvas id="gameCanvas" width="800" height="300"></canvas>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
 
-        // Configurações do Personagem
-        let dino = { x: 50, y: 150, w: 30, h: 30, dy: 0, jumpForce: 12, gravity: 0.6, grounded: false };
-        let obstacle = { x: 600, y: 160, w: 20, h: 20, speed: 5 };
+        // --- CONFIGURAÇÕES DE SPRITES (Dados baseados no spritesheet enviado) ---
+        const SPRITE_W = 120; // Largura aproximada de cada frame (baseado na imagem original)
+        const SPRITE_H = 120; // Altura aproximada de cada frame
+
+        // --- CARREGAMENTO DE ATIVOS ---
+        const spritesheet = new Image();
+        // **IMPORTANTE**: O arquivo 'spritesheet.png' deve estar na mesma pasta do GitHub
+        spritesheet.src = "spritesheet.png"; 
+
+        const caixaImg = new Image();
+        caixaImg.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyMCAyMCI+PHJlY3QgeD0iMCIgeT0iMCIgd2lkdGg9IjIwIiBoZWlnaHQ9IjIwIiBmaWxsPSIjNDQ0Ii8+PHJlY3QgeD0iNSIgeT0iNSIgd2lkdGg9IjEwIiBoZWlnaHQ9IjEwIiBmaWxsPSIjZTk0NTYwIi8+PC9zdmc+";
+
+        const fundoImg = new Image();
+        fundoImg.src = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA4MDAgMzAwIj5sPHJlY3QgeD0iMCIgeT0iMjcwIiB3aWR0aD0iODAwIiBoZWlnaHQ9IjMwIiBmaWxsPSIjMzMzIi8+PC9zdmc+";
+
+        // --- ESTADO DO JOGO ---
+        // Ajustamos o tamanho do Dino na tela (w, h) para combinar com o sprite
+        let dino = { x: 80, y: 150, w: 100, h: 100, dy: 0, jumpForce: 18, gravity: 0.9, grounded: false, 
+                     animationFrame: 0, animationSpeed: 8, ticks: 0 }; 
+        
+        let obstacle = { x: 800, y: 210, w: 40, h: 40, speed: 7 };
+        let fundoX = 0;
         let score = 0;
         let isGameOver = false;
 
         function draw() {
             if (isGameOver) return;
 
-            // Limpa a tela
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // Gravidade e Pulo
+            // 1. Fundo Infinito
+            fundoX -= obstacle.speed * 0.3;
+            if (fundoX <= -canvas.width) fundoX = 0;
+            ctx.drawImage(fundoImg, fundoX, 0, canvas.width, canvas.height);
+            ctx.drawImage(fundoImg, fundoX + canvas.width, 0, canvas.width, canvas.height);
+
+            // 2. Física e Pulo
             if (!dino.grounded) {
                 dino.dy += dino.gravity;
                 dino.y += dino.dy;
             }
-            if (dino.y > 150) {
-                dino.y = 150;
-                dino.grounded = true;
+            if (dino.y > 150) { // Altura do chão para o novo sprite
+                dino.y = 150; dino.grounded = true; dino.dy = 0;
             }
 
-            // Desenha o Dino (Quadrado Verde)
-            ctx.fillStyle = "green";
-            ctx.fillRect(dino.x, dino.y, dino.w, dino.h);
+            // --- 3. Lógica de Animação PRO (Baseada no Spritesheet do Cavaleiro) ---
+            let sx, sy; // Posição de corte no spritesheet
 
-            // Move e Desenha Obstáculo (Quadrado Vermelho)
+            if (!dino.grounded) {
+                // Animação de Pulo (usa a SEGUNDA linha: 'JUMP UP' ou 'JUMP DOWN')
+                sy = SPRITE_H; // Pula para a linha 1 (começa em 120px)
+                
+                if (dino.dy < 0) {
+                    sx = 0; // Subindo: Frame 'JUMP UP'
+                } else {
+                    sx = SPRITE_W; // Descendo: Frame 'JUMP DOWN'
+                }
+            } else {
+                // Animação de Corrida (usa a PRIMEIRA linha: 'RUN')
+                sy = 0; // Começa no topo (altura 0px)
+                
+                dino.ticks++;
+                if (dino.ticks > dino.animationSpeed) {
+                    dino.ticks = 0;
+                    dino.animationFrame = (dino.animationFrame + 1) % 6; // Loop nos 6 frames de corrida
+                }
+                
+                // Corta na coluna correspondente (SPRITE_W * número do frame)
+                // Adicionamos um pequeno ajuste (+15, +10) para alinhar melhor o desenho
+                sx = dino.animationFrame * SPRITE_W; 
+            }
+
+            // Desenha o corte do Spritesheet real na tela
+            ctx.drawImage(spritesheet, sx + 15, sy + 10, SPRITE_W - 30, SPRITE_H - 20, dino.x, dino.y, dino.w, dino.h);
+
+
+            // 4. Obstáculo
             obstacle.x -= obstacle.speed;
-            if (obstacle.x < -20) {
-                obstacle.x = 600;
-                score++;
-                obstacle.speed += 0.2; // Aumenta dificuldade
+            if (obstacle.x < -obstacle.w) {
+                obstacle.x = canvas.width + Math.random() * 500; score++; obstacle.speed += 0.2;
             }
-            ctx.fillStyle = "red";
-            ctx.fillRect(obstacle.x, obstacle.y, obstacle.w, obstacle.h);
+            ctx.drawImage(caixaImg, obstacle.x, obstacle.y, obstacle.w, obstacle.h);
 
-            // Colisão
-            if (dino.x < obstacle.x + obstacle.w && dino.x + dino.w > obstacle.x &&
-                dino.y < obstacle.y + obstacle.h && dino.y + dino.h > obstacle.y) {
-                alert("Game Over! Score: " + score);
+            // 5. Colisão (AABB - ligeiramente menor que o sprite para ficar mais justo)
+            if (dino.x + 20 < obstacle.x + obstacle.w && dino.x + dino.w - 20 > obstacle.x &&
+                dino.y + 10 < obstacle.y + obstacle.h && dino.y + dino.h - 10 > obstacle.y) {
+                
+                // Tela de Fim de Jogo
+                ctx.fillStyle = "rgba(0,0,0,0.85)";
+                ctx.fillRect(0,0, canvas.width, canvas.height);
+                ctx.fillStyle = "#60a5fa";
+                ctx.font = "bold 40px Courier New";
+                ctx.fillText("UNIT_COMPROMISED", canvas.width/2 - 180, canvas.height/2);
+                ctx.fillStyle = "#f1f5f9";
+                ctx.font = "20px Courier New";
+                ctx.fillText("Final Score: " + score, canvas.width/2 - 80, canvas.height/2 + 50);
+                
                 isGameOver = true;
-                location.reload(); 
             }
 
-            // Placar
-            ctx.fillStyle = "black";
-            ctx.fillText("Score: " + score, 10, 20);
+            // 6. Placar
+            ctx.fillStyle = "#94a3b8";
+            ctx.font = "20px Courier New";
+            ctx.fillText("SCORE: " + score, 20, 40);
 
             requestAnimationFrame(draw);
         }
 
+        // --- CONTROLES ---
         window.addEventListener("keydown", (e) => {
-            if (e.code === "Space" && dino.grounded) {
-                dino.dy = -dino.jumpForce;
-                dino.grounded = false;
+            if (e.code === "Space") {
+                if (isGameOver) {
+                    isGameOver = false; dino.y = 150; obstacle.x = canvas.width; obstacle.speed = 7; score = 0; draw();
+                } else if (dino.grounded) {
+                    dino.dy = -dino.jumpForce; dino.grounded = false;
+                }
             }
         });
 
-        draw();
+        // Toca o jogo (aguarda um tempinho para a imagem carregar)
+        spritesheet.onload = draw;
     </script>
 </body>
 </html>
