@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dino JS - Cloudflare Ready</title>
+    <style>
+        canvas { border: 2px solid #333; background-color: #f0f0f0; display: block; margin: 0 auto; }
+        body { text-align: center; font-family: sans-serif; }
+    </style>
+</head>
+<body>
+    <h1>Pressione ESPAÇO para Pular</h1>
+    <canvas id="gameCanvas" width="600" height="200"></canvas>
+
+    <script>
+        const canvas = document.getElementById("gameCanvas");
+        const ctx = canvas.getContext("2d");
+
+        // Configurações do Personagem
+        let dino = { x: 50, y: 150, w: 30, h: 30, dy: 0, jumpForce: 12, gravity: 0.6, grounded: false };
+        let obstacle = { x: 600, y: 160, w: 20, h: 20, speed: 5 };
+        let score = 0;
+        let isGameOver = false;
+
+        function draw() {
+            if (isGameOver) return;
+
+            // Limpa a tela
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Gravidade e Pulo
+            if (!dino.grounded) {
+                dino.dy += dino.gravity;
+                dino.y += dino.dy;
+            }
+            if (dino.y > 150) {
+                dino.y = 150;
+                dino.grounded = true;
+            }
+
+            // Desenha o Dino (Quadrado Verde)
+            ctx.fillStyle = "green";
+            ctx.fillRect(dino.x, dino.y, dino.w, dino.h);
+
+            // Move e Desenha Obstáculo (Quadrado Vermelho)
+            obstacle.x -= obstacle.speed;
+            if (obstacle.x < -20) {
+                obstacle.x = 600;
+                score++;
+                obstacle.speed += 0.2; // Aumenta dificuldade
+            }
+            ctx.fillStyle = "red";
+            ctx.fillRect(obstacle.x, obstacle.y, obstacle.w, obstacle.h);
+
+            // Colisão
+            if (dino.x < obstacle.x + obstacle.w && dino.x + dino.w > obstacle.x &&
+                dino.y < obstacle.y + obstacle.h && dino.y + dino.h > obstacle.y) {
+                alert("Game Over! Score: " + score);
+                isGameOver = true;
+                location.reload(); 
+            }
+
+            // Placar
+            ctx.fillStyle = "black";
+            ctx.fillText("Score: " + score, 10, 20);
+
+            requestAnimationFrame(draw);
+        }
+
+        window.addEventListener("keydown", (e) => {
+            if (e.code === "Space" && dino.grounded) {
+                dino.dy = -dino.jumpForce;
+                dino.grounded = false;
+            }
+        });
+
+        draw();
+    </script>
+</body>
+</html>
